@@ -24,6 +24,9 @@ import dateutil.relativedelta as dtrelative
 import dateutil.tz as dttz
 import pytz
 import yaml
+import gi
+
+gi.require_version('AppIndicator3', '0.1')
 from gi.repository import AppIndicator3 as appindicator
 from gi.repository import Gdk as gdk
 from gi.repository import GLib as glib
