@@ -174,6 +174,7 @@ class Applet:
             self.make_menu_items()
             return self.set_indicator_icon_label(source)
         else:
+            # TODO: DeprecationWarning: AppIndicator3.Indicator.set_icon is deprecated
             source.set_icon(self.get_icon_path("calendar"))
 
         source.set_label(f"{self.first_event(self.events[0])}",
@@ -298,6 +299,8 @@ class Applet:
         item_autostart = gtk.MenuItem(label=label)
         item_autostart.connect("activate", self.install_uninstall_autostart)
         setting_menu.add(item_autostart)
+        # TODO: PyGTKDeprecationWarning: Using positional arguments with the GObject constructor has been deprecated. Please specify keyword(s) for "label" or use a class specific constructor. See: https://wiki.gnome.org/PyGObject/InitializerDeprecations
+        #   setting_item = gtk.MenuItem("Setting")
         setting_item = gtk.MenuItem("Setting")
         setting_item.set_submenu(setting_menu)
         menu.add(setting_item)
@@ -312,7 +315,10 @@ class Applet:
 
     def _match_videocall_url_from_summary(self, event) -> str:
         # can you have multiple descriptions???
-        text = event.get_descriptions()[0].get_value()
+        try:
+            text = event.get_descriptions()[0].get_value()
+        except IndexError:
+            return ""
         for reg in self.config['videocall_desc_regexp']:
             match = re.search(reg, text)
             if match:

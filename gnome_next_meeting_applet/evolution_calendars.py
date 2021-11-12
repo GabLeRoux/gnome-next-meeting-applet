@@ -20,8 +20,6 @@ import datetime
 
 import gi
 
-import dateutil.parser as dtparse
-
 gi.require_version("EDataServer", "1.2")
 from gi.repository import EDataServer
 
@@ -84,12 +82,12 @@ class EvolutionCalendarWrapper:
             if now >= end_time:
                 continue
 
-            ## save memory for stuff we won't care
+            # save memory for stuff we won't care
             if start_time > (now + datetime.timedelta(weeks=4)):
                 continue
 
             uuid = value.get_id().get_uid()
-            # sometime we get doublons whatever the reasons is
+            # sometime we get duplicates whatever the reasons is
             if uuid in seen:
                 continue
             seen.append(uuid)
@@ -97,7 +95,9 @@ class EvolutionCalendarWrapper:
         return events
 
     # TODO: calendar filtering
-    def get_all_events(self, restrict_to_calendar=[]):
+    def get_all_events(self, restrict_to_calendar=None):
+        if restrict_to_calendar is None:
+            restrict_to_calendar = []
         calendars = self._get_gnome_calendars()
         events = []
         for source in calendars:
