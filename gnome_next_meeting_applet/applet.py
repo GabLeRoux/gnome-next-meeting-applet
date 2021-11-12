@@ -77,7 +77,8 @@ class Applet:
                 **yaml.safe_load(configfile.open())
             }
         else:
-            configfile.parent.mkdir(parents=True)
+            if not configfile.parent.exists():
+                configfile.parent.mkdir(parents=True)
             configfile.write_text(yaml.safe_dump(DEFAULT_CONFIG))
             self.config = DEFAULT_CONFIG
 
