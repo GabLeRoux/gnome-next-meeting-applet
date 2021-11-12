@@ -86,7 +86,8 @@ class Applet:
             f"{glib.get_user_config_dir()}/autostart/gnome-next-meeting-applet.desktop"
         ).expanduser()
 
-    def htmlspecialchars(self, text):
+    @staticmethod
+    def htmlspecialchars(text):
         """Replace html chars"""
         return (text.replace("&", "&amp;").replace('"', "&quot;").replace(
             "<", "&lt;").replace(">", "&gt;"))
@@ -123,9 +124,9 @@ class Applet:
     def get_all_events(self):
         """Get all events from Google Calendar API"""
         # event_list = json.load(open("/tmp/allevents.json"))
-        evolutionCalendar = evocal.EvolutionCalendarWrapper()
+        evolution_calendar = evocal.EvolutionCalendarWrapper()
         # TODO: add filtering user option GUI instead of just yaml
-        event_list = evolutionCalendar.get_all_events(
+        event_list = evolution_calendar.get_all_events(
             restrict_to_calendar=self.config["restrict_to_calendar"])
         ret = []
 
@@ -179,7 +180,8 @@ class Applet:
                          APP_INDICATOR_ID)
         return True
 
-    def get_icon_path(self, icon):
+    @staticmethod
+    def get_icon_path(icon):
         devpath = pathlib.Path(__file__).parent.parent / "images"
         if not devpath.exists():
             devpath = pathlib.Path(
@@ -191,10 +193,12 @@ class Applet:
         return "x-office-calendar-symbolic"
 
     # pylint: disable=unused-argument
-    def applet_quit(self, _):
+    @staticmethod
+    def applet_quit(_):
         gtk.main_quit()
 
-    def applet_click(self, source):
+    @staticmethod
+    def applet_click(source):
         if source.location == "":
             return
         print(f"Opening Location: {source.location}")
@@ -220,8 +224,7 @@ class Applet:
             event_first.get_dtstart())
         event_first_end_time = evocal.get_ecal_as_utc(event_first.get_dtend())
 
-        if (event_first_start_time < now and now < event_first_end_time
-                and event_first.get_attachments()):
+        if event_first_start_time < now < event_first_end_time and event_first.get_attachments():
             menuitem = gtk.MenuItem(label="📑 Open current meeting document")
             menuitem.location = event_first.get_attachments()[0].get_url()
             menuitem.connect("activate", self.applet_click)
@@ -239,12 +242,10 @@ class Applet:
                 if currentday != "":
                     menu.append(gtk.MenuItem(label=""))
                 todayitem = gtk.MenuItem(
-                    label=
-                    f'<span size="large" font="FreeSerif:18">{_cday}</span>')
+                    label=f'<span size="large" font="FreeSerif:18">{_cday}</span>')
                 todayitem.get_child().set_use_markup(True)
-                self.config["calendar_day_prefix_url"]
-                todayitem.location = (self.config["calendar_day_prefix_url"] +
-                                      "/" + start_time.strftime("%Y/%m/%d"))
+                calendar_day_prefix_url = self.config["calendar_day_prefix_url"]
+                todayitem.location = f"{calendar_day_prefix_url}/{start_time.strftime('%Y/%m/%d')}"
                 todayitem.connect("activate", self.applet_click)
                 menu.append(todayitem)
                 menu.append(gtk.SeparatorMenuItem())
@@ -291,15 +292,15 @@ class Applet:
 
         menu.append(gtk.SeparatorMenuItem())
 
-        settingMenu = gtk.Menu()
+        setting_menu = gtk.Menu()
         label = ("Remove autostart"
                  if self.autostart_file.exists() else "Auto start at boot")
         item_autostart = gtk.MenuItem(label=label)
         item_autostart.connect("activate", self.install_uninstall_autostart)
-        settingMenu.add(item_autostart)
-        settingItem = gtk.MenuItem("Setting")
-        settingItem.set_submenu(settingMenu)
-        menu.add(settingItem)
+        setting_menu.add(item_autostart)
+        setting_item = gtk.MenuItem("Setting")
+        setting_item.set_submenu(setting_menu)
+        menu.add(setting_item)
 
         item_quit = gtk.MenuItem(label="Quit")
         item_quit.connect("activate", self.applet_quit)
