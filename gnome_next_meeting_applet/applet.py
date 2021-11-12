@@ -49,13 +49,14 @@ DEFAULT_CONFIG = {
     "change_icon_minutes": 2,
     "default_icon": "‣",
     "calendar_day_prefix_url": "https://calendar.google.com/calendar/r/day/",
+    "videocall_desc_regexp": [
+        r"(https://.*zoom.us/j/[^\n]*)",
+        r"(https://meet.google.com/[^\n]*)",
+        r"(https://teams.microsoft.com/l/meetup-join/[^\n]*)",
+        r"(https://meet.lync.com/[^\n]*)",
+        r"(https://.*amazon.com/meeting/[^\n]*)",
+    ]
 }
-
-VIDEOCALL_DESC_REGEXP = [
-    r"href=\"(https:..primetime.bluejeans.com.a2m.live-event.([^\/\"])*\")",
-    r"(https://zoom.us/j/[^\n]*)",
-    r"(https://meet.google.com/[^\n]*)",
-]
 
 
 class Applet:
@@ -310,7 +311,7 @@ class Applet:
     def _match_videocall_url_from_summary(self, event) -> str:
         # can you have multiple descriptions???
         text = event.get_descriptions()[0].get_value()
-        for reg in VIDEOCALL_DESC_REGEXP:
+        for reg in self.config['videocall_desc_regexp']:
             match = re.search(reg, text)
             if match:
                 url = match.groups()[0]
