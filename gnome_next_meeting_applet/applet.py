@@ -87,7 +87,7 @@ class Applet:
         ).expanduser()
 
     @staticmethod
-    def htmlspecialchars(text):
+    def replace_html_special_chars(text):
         """Replace html chars"""
         return (text.replace("&", "&amp;").replace('"', "&quot;").replace(
             "<", "&lt;").replace(">", "&gt;"))
@@ -251,7 +251,7 @@ class Applet:
                 menu.append(gtk.SeparatorMenuItem())
                 currentday = _cday
 
-            summary = self.htmlspecialchars(
+            summary = self.replace_html_special_chars(
                 event.get_summary().get_value().strip())
 
             icon = self.config["default_icon"]
