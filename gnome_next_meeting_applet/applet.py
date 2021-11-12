@@ -31,7 +31,7 @@ from gi.repository import Gtk as gtk
 
 import gnome_next_meeting_applet.evolution_calendars as evocal
 
-APP_INDICTOR_ID = "gnome-next-meeting-applet"
+APP_INDICATOR_ID = "gnome-next-meeting-applet"
 
 DEFAULT_CONFIG = {
     # TODO(chmouel): should be plural
@@ -64,7 +64,7 @@ class Applet:
     def __init__(self):
         self.config = DEFAULT_CONFIG
         self.config_dir = os.path.expanduser(
-            f"{glib.get_user_config_dir()}/{APP_INDICTOR_ID}")
+            f"{glib.get_user_config_dir()}/{APP_INDICATOR_ID}")
 
         configfile = pathlib.Path(self.config_dir) / "config.yaml"
         if configfile.exists():
@@ -152,7 +152,7 @@ class Applet:
     def set_indicator_icon_label(self, source):
         if not self.events:
             source.set_label("Configure Gnome Online Account First",
-                             APP_INDICTOR_ID)
+                             APP_INDICATOR_ID)
             return
 
         now = datetime.datetime.now().astimezone(pytz.timezone("UTC"))
@@ -171,7 +171,7 @@ class Applet:
             source.set_icon(self.get_icon_path("calendar"))
 
         source.set_label(f"{self.first_event(self.events[0])}",
-                         APP_INDICTOR_ID)
+                         APP_INDICATOR_ID)
         return True
 
     def get_icon_path(self, icon):
@@ -336,7 +336,7 @@ Version=1.0
 
     def build_indicator(self):
         self.indicator = appindicator.Indicator.new(
-            APP_INDICTOR_ID,
+            APP_INDICATOR_ID,
             self.get_icon_path("calendar"),
             appindicator.IndicatorCategory.SYSTEM_SERVICES,
         )
