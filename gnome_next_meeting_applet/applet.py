@@ -37,8 +37,7 @@ import gnome_next_meeting_applet.evolution_calendars as evocal
 APP_INDICATOR_ID = "gnome-next-meeting-applet"
 
 DEFAULT_CONFIG = {
-    # TODO(chmouel): should be plural
-    "restrict_to_calendar": [],
+    "restrict_to_calendars": [],
     "skip_non_accepted": True,
     "my_emails": [],
     "max_results": 10,
@@ -47,7 +46,7 @@ DEFAULT_CONFIG = {
     "event_organizers_icon": {},
     "title_match_icon": {},
     "change_icon_minutes": 2,
-    "default_icon": "‣",
+    "default_icon": "🗓️",
     "calendar_day_prefix_url": "https://calendar.google.com/calendar/r/day/",
     "videocall_desc_regexp": [
         r"(https://.*zoom.us/j/[^\n]*)",
@@ -57,6 +56,18 @@ DEFAULT_CONFIG = {
         r"(https://.*amazon.com/meeting/[^\n]*)",
     ]
 }
+
+
+def get_human_readable_week_day(start_time):
+    today = datetime.datetime.now(pytz.timezone("UTC"))
+    formatted_date = start_time.strftime("%d %b")
+    if start_time.date() == today.date():
+        return f"Today ({formatted_date})"
+    if start_time.date() == today.date() + datetime.timedelta(days=1):
+        return f"Tomorrow ({formatted_date})"
+    if start_time.date() < today.date() + datetime.timedelta(days=7):
+        return start_time.strftime(f"%A ({formatted_date})")
+    return start_time.strftime("%d %b")
 
 
 class Applet:
@@ -71,6 +82,7 @@ class Applet:
             f"{glib.get_user_config_dir()}/{APP_INDICATOR_ID}")
 
         configfile = pathlib.Path(self.config_dir) / "config.yaml"
+        print(configfile)
         if configfile.exists():
             self.config = {
                 **DEFAULT_CONFIG,
@@ -95,39 +107,41 @@ class Applet:
     def first_event(self, event):
         """Show first event in menubar"""
         # not sure why but on my gnome version (arch 40.4.0) we don't need to do
-        # htmlspecialchars in bar, but i am sure on ubuntu i needed that, YMMV :-d !
+        # replace_html_special_chars in bar, but I am sure on ubuntu I needed that, YMMV :-d !
         summary = (event.get_summary().get_value().strip()
                    [:self.config["title_max_char"]])
-        now = datetime.datetime.now().astimezone(pytz.timezone("UTC"))
 
         start_time = evocal.get_ecal_as_utc(event.get_dtstart())
         end_time = evocal.get_ecal_as_utc(event.get_dtend())
 
-        if start_time < now < end_time:
-            _rd = dtrelative.relativedelta(end_time, now)
-        else:
-            _rd = dtrelative.relativedelta(start_time, now)
+        readable_delay = self._get_readable_delay(start_time, end_time)
+        return f"{readable_delay} - {summary}"
 
-        humzrd = ""
-        for dttype in (("day", _rd.days), ("hour", _rd.hours), ("minute",
-                                                                _rd.minutes)):
-            if dttype[1] == 0:
-                continue
-            humzrd += f"{dttype[1]} {dttype[0]}"
-            if dttype[1] > 1:
-                humzrd += "s"
-            humzrd += " "
-        if start_time < now < end_time:
-            humzrd = humzrd.strip() + " left"
-        return f"{humzrd.strip()} - {summary}"
+    def _get_readable_delay(self, start_time, end_time):
+        """Get readable delay"""
+        now = datetime.datetime.now(pytz.timezone("UTC"))
+        if start_time < now:
+            return "past"
+        if start_time > now:
+            return f"in {self._get_readable_time_delta(start_time - now)}"
+        return f"in {self._get_readable_time_delta(end_time - now)}"
+
+    def _get_readable_time_delta(self, time_delta):
+        """Get readable time delta"""
+        if time_delta.days > 0:
+            return f"{time_delta.days}d"
+        if time_delta.seconds > 3600:
+            return f"{time_delta.seconds // 3600}h{time_delta.seconds % 3600 // 60}m"
+        if time_delta.seconds > 60:
+            return f"{time_delta.seconds // 60}m"
+        return f"{time_delta.seconds}s"
 
     def get_all_events(self):
-        """Get all events from Google Calendar API"""
-        # event_list = json.load(open("/tmp/allevents.json"))
+        """Get all events from Evolution Calendar"""
         evolution_calendar = evocal.EvolutionCalendarWrapper()
         # TODO: add filtering user option GUI instead of just yaml
         event_list = evolution_calendar.get_all_events(
-            restrict_to_calendar=self.config["restrict_to_calendar"])
+            restrict_to_calendars=self.config["restrict_to_calendars"])
         ret = []
 
         events_sorted = sorted(
@@ -137,17 +151,17 @@ class Applet:
                 print("SKipping not confirmed")
                 continue
 
-            skipit = False
+            skip_it = False
             if self.config["skip_non_accepted"] and self.config["my_emails"]:
-                skipit = True
+                skip_it = True
                 for attendee in event.get_attendees():
-                    for myemail in self.config["my_emails"]:
+                    for my_email in self.config["my_emails"]:
                         if (attendee.get_value().replace("mailto:",
-                                                         "") == myemail
+                                                         "") == my_email
                                 and attendee.get_partstat().value_name
                                 == "I_CAL_PARTSTAT_ACCEPTED"):
-                            skipit = False
-            if skipit:
+                            skip_it = False
+            if skip_it:
                 continue
 
             ret.append(event)
@@ -157,8 +171,7 @@ class Applet:
     # pylint: disable=unused-argument
     def set_indicator_icon_label(self, source):
         if not self.events:
-            source.set_label("Configure Gnome Online Account First",
-                             APP_INDICATOR_ID)
+            source.set_label("Configure Gnome Online Account First", APP_INDICATOR_ID)
             return
 
         now = datetime.datetime.now().astimezone(pytz.timezone("UTC"))
@@ -183,14 +196,14 @@ class Applet:
 
     @staticmethod
     def get_icon_path(icon):
-        devpath = pathlib.Path(__file__).parent.parent / "images"
-        if not devpath.exists():
-            devpath = pathlib.Path(
+        dev_path = pathlib.Path(__file__).parent.parent / "images"
+        if not dev_path.exists():
+            dev_path = pathlib.Path(
                 "/usr/share/gnome-next-meeting-applet/images")
 
         for ext in ["svg", "png"]:
-            if (devpath / f"{icon}.{ext}").exists():
-                return str(devpath / f"{icon}.{ext}")
+            if (dev_path / f"{icon}.{ext}").exists():
+                return str(dev_path / f"{icon}.{ext}")
         return "x-office-calendar-symbolic"
 
     # pylint: disable=unused-argument
@@ -200,6 +213,7 @@ class Applet:
 
     @staticmethod
     def applet_click(source):
+        print(f"Clicked {source}")
         if source.location == "":
             return
         print(f"Opening Location: {source.location}")
@@ -210,7 +224,7 @@ class Applet:
 
         menu = gtk.Menu()
         now = datetime.datetime.now().astimezone(pytz.timezone("UTC"))
-        currentday = ""
+        current_day = ""
 
         if not self.events:
             menuitem = gtk.MenuItem(
@@ -230,27 +244,23 @@ class Applet:
             menuitem.location = event_first.get_attachments()[0].get_url()
             menuitem.connect("activate", self.applet_click)
             menu.add(menuitem)
-            menu.append(gtk.SeparatorMenuItem())
 
         for event in self.events[0:int(self.config["max_results"])]:
-            # TODO print the day
             start_time = evocal.get_ecal_as_utc(event.get_dtstart())
             start_time = start_time.astimezone(dttz.gettz())
 
-            _cday = start_time.strftime("%A %d %B %Y")
+            # get human readable relative date (e.g. "Today", "Tomorrow")
+            _current_day = get_human_readable_week_day(start_time)
 
-            if _cday != currentday:
-                if currentday != "":
-                    menu.append(gtk.MenuItem(label=""))
-                todayitem = gtk.MenuItem(
-                    label=f'<span size="large" font="FreeSerif:18">{_cday}</span>')
-                todayitem.get_child().set_use_markup(True)
+            if _current_day != current_day:
+
+                today_item = gtk.MenuItem(label=_current_day)
+                gtk.MenuItem.set_sensitive(today_item, False)
                 calendar_day_prefix_url = self.config["calendar_day_prefix_url"]
-                todayitem.location = f"{calendar_day_prefix_url}/{start_time.strftime('%Y/%m/%d')}"
-                todayitem.connect("activate", self.applet_click)
-                menu.append(todayitem)
-                menu.append(gtk.SeparatorMenuItem())
-                currentday = _cday
+                today_item.location = f"{calendar_day_prefix_url}/{start_time.strftime('%Y/%m/%d')}"
+                today_item.connect("activate", self.applet_click)
+                menu.append(today_item)
+                current_day = _current_day
 
             summary = self.replace_html_special_chars(
                 event.get_summary().get_value().strip())
@@ -264,38 +274,34 @@ class Applet:
                         icon = self.config["event_organizers_icon"][regexp]
                         break
 
-            if icon == self.config["default_icon"]:
-                title = event.get_summary().get_value()
-                for regexp in self.config["title_match_icon"]:
-                    if re.match(regexp, title):
-                        icon = self.config["title_match_icon"][regexp]
-
             start_time_str = start_time.strftime("%H:%M")
             if now >= start_time:
                 summary = f"<i>{summary}</i>"
-            menuitem = gtk.MenuItem(
-                label=f"{icon} {summary} - {start_time_str}")
-            menuitem.get_child().set_use_markup(True)
 
-            match_videocall_summary = self._match_videocall_url_from_summary(
-                event)
+            match_videocall_summary = self._match_videocall_url_from_summary(event)
 
-            if event.get_location() and event.get_location().startswith(
-                    "https://"):
-                menuitem.location = event.get_location()
+            if event.get_location() and event.get_location().startswith("https://"):
+                icon = "🕸"
+                location = event.get_location()
             elif match_videocall_summary:
-                menuitem.location = match_videocall_summary
+                icon = "📹"
+                location = match_videocall_summary
             else:
-                menuitem.location = ""
+                if icon == self.config["default_icon"]:
+                    title = event.get_summary().get_value()
+                    for regexp in self.config["title_match_icon"]:
+                        if re.match(regexp, title):
+                            icon = self.config["title_match_icon"][regexp]
+                location = ""
 
+            menuitem = gtk.MenuItem(label=f"{icon} {summary} - {start_time_str}")
+            menuitem.location = location
+            menuitem.get_child().set_use_markup(True)
             menuitem.connect("activate", self.applet_click)
             menu.append(menuitem)
 
-        menu.append(gtk.SeparatorMenuItem())
-
         setting_menu = gtk.Menu()
-        label = ("Remove autostart"
-                 if self.autostart_file.exists() else "Auto start at boot")
+        label = ("Remove autostart" if self.autostart_file.exists() else "Auto start at boot")
         item_autostart = gtk.MenuItem(label=label)
         item_autostart.connect("activate", self.install_uninstall_autostart)
         setting_menu.add(item_autostart)
@@ -336,10 +342,10 @@ class Applet:
         self.autostart_file.write_text("""#!/usr/bin/env xdg-open
 [Desktop Entry]
 Categories=Productivity;
-Comment=Google calendar applet to show next meetings
+Comment=Gnome next meeting applet to jump on your next call in a single click
 Exec=gnome-next-meeting-applet
 Icon=calendar
-Name=Google Calendar next meeting
+Name=Gnome next meeting applet
 StartupNotify=false
 Type=Application
 Version=1.0
@@ -355,10 +361,8 @@ Version=1.0
         self.indicator.set_status(appindicator.IndicatorStatus.ACTIVE)
         self.make_menu_items()
         self.set_indicator_icon_label(self.indicator)
-        glib.timeout_add_seconds(30, self.set_indicator_icon_label,
-                                 self.indicator)
-        glib.timeout_add_seconds(self.config["refresh_interval"],
-                                 self.make_menu_items)
+        glib.timeout_add_seconds(30, self.set_indicator_icon_label, self.indicator)
+        glib.timeout_add_seconds(self.config["refresh_interval"], self.make_menu_items)
         gtk.main()
 
     def main(self):

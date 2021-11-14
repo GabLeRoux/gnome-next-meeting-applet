@@ -46,9 +46,11 @@ class EvolutionCalendarWrapper:
     def _get_gnome_calendars():
         # https://lazka.github.io/pgi-docs/EDataServer-1.2/classes/SourceRegistry.html#EDataServer.SourceRegistry.new_sync
         registry = EDataServer.SourceRegistry.new_sync(GIO_CANCELLABLE)
+        # https://lazka.github.io/pgi-docs/EDataServer-1.2/classes/SourceRegistry.html#EDataServer.SourceRegistry.list_sources
         return EDataServer.SourceRegistry.list_sources(
             registry, EDataServer.SOURCE_EXTENSION_CALENDAR
         )
+        # return EDataServer.SourceRegistry.list_sources(registry)
 
     def _get_gnome_events_from_calendar_source(self, source: EDataServer.Source):
         # https://lazka.github.io/pgi-docs/ECal-2.0/classes/Client.html#ECal.Client
@@ -95,13 +97,14 @@ class EvolutionCalendarWrapper:
         return events
 
     # TODO: calendar filtering
-    def get_all_events(self, restrict_to_calendar=None):
-        if restrict_to_calendar is None:
-            restrict_to_calendar = []
+    def get_all_events(self, restrict_to_calendars=None):
+        if restrict_to_calendars is None:
+            restrict_to_calendars = []
         calendars = self._get_gnome_calendars()
+        print(f"Found following calendars: {[source.get_display_name() for source in calendars]}")
         events = []
         for source in calendars:
-            if restrict_to_calendar and source.get_display_name() not in restrict_to_calendar:
+            if restrict_to_calendars and source.get_display_name() not in restrict_to_calendars:
                 continue
             events += self._get_gnome_events_from_calendar_source(source)
         return events
