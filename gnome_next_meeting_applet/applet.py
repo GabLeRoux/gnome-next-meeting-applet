@@ -39,6 +39,7 @@ APP_INDICATOR_ID = "gnome-next-meeting-applet"
 DEFAULT_CONFIG = {
     "restrict_to_calendars": [],
     "skip_non_accepted": True,
+    "show_only_videocall_events": False,
     "my_emails": [],
     "max_results": 10,
     "title_max_char": 20,
@@ -76,6 +77,8 @@ class Applet:
     events: typing.List = []
     indicator = None
 
+    empty_events_message = "No upcoming events"
+
     def __init__(self):
         self.config = DEFAULT_CONFIG
         self.config_dir = os.path.expanduser(
@@ -84,10 +87,11 @@ class Applet:
         configfile = pathlib.Path(self.config_dir) / "config.yaml"
         print(configfile)
         if configfile.exists():
-            self.config = {
-                **DEFAULT_CONFIG,
-                **yaml.safe_load(configfile.open())
-            }
+            with configfile.open() as f:
+                self.config = {
+                    **DEFAULT_CONFIG,
+                    **yaml.safe_load(f)
+                }
         else:
             if not configfile.parent.exists():
                 configfile.parent.mkdir(parents=True)
@@ -101,8 +105,11 @@ class Applet:
     @staticmethod
     def replace_html_special_chars(text):
         """Replace html chars"""
-        return (text.replace("&", "&amp;").replace('"', "&quot;").replace(
-            "<", "&lt;").replace(">", "&gt;"))
+        return text\
+            .replace("&", "&amp;")\
+            .replace('"', "&quot;")\
+            .replace("<", "&lt;")\
+            .replace(">", "&gt;")
 
     def first_event(self, event):
         """Show first event in menubar"""
@@ -145,7 +152,9 @@ class Applet:
         ret = []
 
         events_sorted = sorted(
-            event_list, key=lambda x: evocal.get_ecal_as_utc(x.get_dtstart()))
+            event_list, key=lambda x: evocal.get_ecal_as_utc(x.get_dtstart())
+        )
+
         for event in events_sorted:
             if event.get_status().value_name != "I_CAL_STATUS_CONFIRMED":
                 print("SKipping not confirmed")
@@ -156,13 +165,18 @@ class Applet:
                 skip_it = True
                 for attendee in event.get_attendees():
                     for my_email in self.config["my_emails"]:
-                        if (attendee.get_value().replace("mailto:",
-                                                         "") == my_email
-                                and attendee.get_partstat().value_name
-                                == "I_CAL_PARTSTAT_ACCEPTED"):
+                        if (
+                            attendee.get_value().replace("mailto:", "") == my_email
+                            and attendee.get_partstat().value_name == "I_CAL_PARTSTAT_ACCEPTED"
+                        ):
                             skip_it = False
             if skip_it:
                 continue
+
+            if self.config["show_only_videocall_events"]:
+                videocall_url = self._match_videocall_url_from_summary(event)
+                if videocall_url == "":
+                    continue
 
             ret.append(event)
 
@@ -171,7 +185,7 @@ class Applet:
     # pylint: disable=unused-argument
     def set_indicator_icon_label(self, source):
         if not self.events:
-            source.set_label("Configure Gnome Online Account First", APP_INDICATOR_ID)
+            source.set_label(self.empty_events_message, APP_INDICATOR_ID)
             return
 
         now = datetime.datetime.now().astimezone(pytz.timezone("UTC"))
@@ -227,8 +241,7 @@ class Applet:
         current_day = ""
 
         if not self.events:
-            menuitem = gtk.MenuItem(
-                label="Configure Gnome Online Account first")
+            menuitem = gtk.MenuItem(label=self.empty_events_message)
             menu.show_all()
             menu.add(menuitem)
             self.indicator.set_menu(menu)
@@ -280,22 +293,24 @@ class Applet:
 
             match_videocall_summary = self._match_videocall_url_from_summary(event)
 
-            if event.get_location() and event.get_location().startswith("https://"):
-                icon = "🕸"
-                location = event.get_location()
-            elif match_videocall_summary:
-                icon = "📹"
-                location = match_videocall_summary
+            url = ""
+            location = event.get_location()
+            if location:
+                if match_videocall_summary:
+                    icon = "📹"
+                    url = match_videocall_summary
+                elif location.startswith("https://"):
+                    icon = "🕸"
+                    url = location
             else:
                 if icon == self.config["default_icon"]:
                     title = event.get_summary().get_value()
                     for regexp in self.config["title_match_icon"]:
                         if re.match(regexp, title):
                             icon = self.config["title_match_icon"][regexp]
-                location = ""
 
             menuitem = gtk.MenuItem(label=f"{icon} {summary} - {start_time_str}")
-            menuitem.location = location
+            menuitem.location = url
             menuitem.get_child().set_use_markup(True)
             menuitem.connect("activate", self.applet_click)
             menu.append(menuitem)
@@ -320,7 +335,6 @@ class Applet:
         self.indicator.set_menu(menu)
 
     def _match_videocall_url_from_summary(self, event) -> str:
-        # can you have multiple descriptions???
         try:
             text = event.get_descriptions()[0].get_value()
         except IndexError:
