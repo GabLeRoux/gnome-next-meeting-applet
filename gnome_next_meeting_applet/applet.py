@@ -1,17 +1,4 @@
 # -*- coding: utf-8 -*-
-# Author: Chmouel Boudjnah <chmouel@chmouel.com>
-#
-# Licensed under the Apache License, Version 2.0 (the "License"); you may
-# not use this file except in compliance with the License. You may obtain
-# a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
 # pylint: disable=no-self-use
 """Gnome next meeting calendar applet via Google Calendar"""
 import datetime
@@ -335,10 +322,10 @@ class Applet:
         self.indicator.set_menu(menu)
 
     def _match_videocall_url_from_summary(self, event) -> str:
-        try:
-            text = event.get_descriptions()[0].get_value()
-        except IndexError:
+        descriptions = event.get_descriptions()
+        if not descriptions:
             return ""
+        text = descriptions[0].get_value()
         for reg in self.config['videocall_desc_regexp']:
             match = re.search(reg, text)
             if match:
@@ -356,13 +343,13 @@ class Applet:
         self.autostart_file.write_text("""#!/usr/bin/env xdg-open
 [Desktop Entry]
 Categories=Productivity;
-Comment=Gnome next meeting applet to jump on your next call in a single click
 Exec=gnome-next-meeting-applet
 Icon=calendar
 Name=Gnome next meeting applet
 StartupNotify=false
 Type=Application
-Version=1.0
+X-GNOME-Autostart-enabled=true
+Terminal=false
 """)
         source.set_label("Remove autostart")
 
