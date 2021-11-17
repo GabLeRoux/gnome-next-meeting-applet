@@ -26,6 +26,7 @@ APP_INDICATOR_ID = "gnome-next-meeting-applet"
 DEFAULT_CONFIG = {
     "restrict_to_calendars": [],
     "skip_non_accepted": True,
+    "skip_full_day_events": True,  # TODO: implement this
     "show_only_videocall_events": False,
     "my_emails": [],
     "max_results": 10,
@@ -35,7 +36,6 @@ DEFAULT_CONFIG = {
     "title_match_icon": {},
     "change_icon_minutes": 2,
     "default_icon": "🗓️",
-    "calendar_day_prefix_url": "https://calendar.google.com/calendar/r/day/",
     "videocall_desc_regexp": [
         r"(https://.*zoom.us/j/[^\n]*)",
         r"(https://meet.google.com/[^\n]*)",
@@ -191,8 +191,7 @@ class Applet:
             # TODO: DeprecationWarning: AppIndicator3.Indicator.set_icon is deprecated
             source.set_icon(self.get_icon_path("calendar"))
 
-        source.set_label(f"{self.first_event(self.events[0])}",
-                         APP_INDICATOR_ID)
+        source.set_label(f"{self.first_event(self.events[0])}", APP_INDICATOR_ID)
         return True
 
     @staticmethod
@@ -229,6 +228,7 @@ class Applet:
 
         if not self.events:
             menuitem = gtk.MenuItem(label=self.empty_events_message)
+            self._add_quit_menu_item(menu)
             menu.show_all()
             menu.add(menuitem)
             self.indicator.set_menu(menu)
@@ -253,12 +253,8 @@ class Applet:
             _current_day = get_human_readable_week_day(start_time)
 
             if _current_day != current_day:
-
                 today_item = gtk.MenuItem(label=_current_day)
                 gtk.MenuItem.set_sensitive(today_item, False)
-                calendar_day_prefix_url = self.config["calendar_day_prefix_url"]
-                today_item.location = f"{calendar_day_prefix_url}/{start_time.strftime('%Y/%m/%d')}"
-                today_item.connect("activate", self.applet_click)
                 menu.append(today_item)
                 current_day = _current_day
 
@@ -313,13 +309,16 @@ class Applet:
         setting_item.set_submenu(setting_menu)
         menu.add(setting_item)
 
-        item_quit = gtk.MenuItem(label="Quit")
-        item_quit.connect("activate", self.applet_quit)
-        menu.add(item_quit)
+        self._add_quit_menu_item(menu)
 
         menu.show_all()
 
         self.indicator.set_menu(menu)
+
+    def _add_quit_menu_item(self, menu):
+        item_quit = gtk.MenuItem(label="Quit")
+        item_quit.connect("activate", self.applet_quit)
+        menu.add(item_quit)
 
     def _match_videocall_url_from_summary(self, event) -> str:
         descriptions = event.get_descriptions()
